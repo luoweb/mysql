@@ -1,0 +1,50 @@
+
+1，创建docker镜像：
+
+docker run -d -e MYSQL_ROOT_PASSWORD=mysql -p 127.0.0.1:3307:3306 --name=master mysql
+
+master：3307
+docker run --name mysql-m -e MYSQL_ROOT_PASSWORD=mysql -p 127.0.0.1:3307:3306 -d mysql
+slave:3308
+docker run --name mysql-s -e MYSQL_ROOT_PASSWORD=mysql -p 127.0.0.1:3308:3306 -d mysql
+
+docker run -d --link master:master -e MYSQL_ROOT_PASSWORD=mysql -p 127.0.0.1:3308:3306  --name=slave mysql
+
+
+2，master创建主从复制用户
+create user repl; //创建新用户
+GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%' IDENTIFIED BY 'mysql'; // 设置密码与权限
+
+3,配置master上的my.cnf,并重启master
+[mysqld]
+server-id=1
+log-bin=master-bin
+log-bin-index=master-bin.index
+
+本地编辑后拷贝：
+docker cp my.cnf /etc/mysql/my.cnf
+
+重启后记录日志信息：
+mysql> SHOW MASTER STATUS;
+
+
+4,配置slave上的my.cnf，启用relay-log，并重启slave
+[mysqld]
+server-id=2
+relay-log-index=slave-relay-bin.index
+relay-log=slave-relay-bin 
+
+本地编辑后拷贝：
+docker cp my.cnf /etc/mysql/my.cnf
+
+5,slave上执行，连接Master
+change master to master_host='127.0.0.1',
+master_port=3307,
+master_user='repl',
+master_password='mysql',
+master_log_file='master-bin.000001',
+master_log_pos=1375;
+
+替换master 的 地址、端口、登录账号、开始同步的日志信息；
+
+start slave;
